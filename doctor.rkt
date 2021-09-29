@@ -66,32 +66,33 @@
 
 ; замена лица во фразе
 (define (change-person phrase)
-  (many-replace '((am are)
-                  (are am)
-                  (i you)
-                  (me you)
-                  (mine yours)
-                  (my your)
-                  						(myself yourself)
-                                                                (you i)
-                                                                (your my)
-                                                                (yours mine)
-                                                                						(yourself myself)
-                                                                                                                						(we you)
-                                                                                                                                                                						(us you)
-                                                                                                                                                                                                                						(our your)
-                                                                                                                                                                                                                                                                						(ours yours)
-                                                                                                                                                                                                                                                                                                                						(ourselves yourselves)
-                                                                                                                                                                                                                                                                                                                                                                						(yourselves ourselves)
-                                                                                                                                                                                                                                                                                                                                                                                                                						(shall will))
-                phrase)
+  (many-replace-v3 '((am are)
+                     (are am)
+                     (i you)
+                     (me you)
+                     (mine yours)
+                     (my your)
+                     (myself yourself)
+                     (you i)
+                     (your my)
+                     (yours mine)
+                     (yourself myself)
+                     (we you)
+                     (us you)
+                     (our your)
+                     (ours yours)
+                     (ourselves yourselves)
+                     (yourselves ourselves)
+                     (shall will))
+                   phrase)
   )
 
 ; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs
 (define (many-replace replacement-pairs lst)
   (cond ((null? lst) lst)
         (else (let ((pat-rep (assoc (car lst) replacement-pairs))) ; Доктор ищет первый элемент списка в ассоциативном списке замен
-                (cons (if pat-rep (cadr pat-rep) ; если поиск был удачен, то в начало ответа Доктор пишет замену
+                (cons (if pat-rep
+                          (cadr pat-rep) ; если поиск был удачен, то в начало ответа Доктор пишет замену
                           (car lst) ; иначе в начале ответа помещается прежнее начало списка без изменений
                           )
                       (many-replace replacement-pairs (cdr lst)) ; рекурсивно производятся замены в хвосте списка
@@ -99,6 +100,41 @@
                 )
               )
         )
+  )
+
+; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs - итеративная версия
+(define (many-replace-v2 replacement-pairs lst)
+  (reverse ; получаем список с заменами в перевернутом виде (чтобы не использовать append), затем разворачиваем
+   (let many-replace-iter ; вспомогательная функция - порождает итеративный процесс за счет хвостовой рекурсии
+     ((replaced '()) (unreplaced lst)) ; replaced - начальная часть исходного списка, в которой уже произведены замены
+     (if (null? unreplaced)            ; unreplaced - хвост исходного списка, над которым еще не проведены замены
+         replaced ; Если исходный список кончился (хвост пустой), то возвращаем измененную часть.
+         (many-replace-iter (let ((pat-rep (assoc (car unreplaced) replacement-pairs)))
+                              (cons (if pat-rep  ; Иначе берем первый элемент хвоста исходного списка (unreplaced),
+                                        (cadr pat-rep) ; производим над ним замену
+                                        (car unreplaced) ; и присоединяем результат к replaced;
+                                        )
+                                    replaced
+                                    )
+                              )
+                            (cdr unreplaced) ; после этого переходим к новой итерации.
+                            )
+         )
+     )
+   )
+  )
+
+; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs - версия с map
+(define (many-replace-v3 replacement-pairs lst)
+  (map (lambda (pat) ; Анонимная функция для отображения исходного списка lst в список-результат.
+         (let ((pat-rep (assoc pat replacement-pairs)))
+           (if pat-rep
+               (cadr pat-rep) ; Либо находит замену для элемента pat,
+               pat ; либо возвращает элемент неизменным, если такой замены не существует.
+               )
+           )
+         )
+       lst)
   )
 
 ; 2й способ генерации ответной реплики -- случайный выбор одной из заготовленных фраз, не связанных с репликой пользователя
