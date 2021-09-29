@@ -10,7 +10,7 @@
 (define (visit-doctor name)
   (printf "Hello, ~a!\n" name)
   (print '(what seems to be the trouble?))
-  (doctor-driver-loop name)
+  (doctor-driver-loop-v2 name #())
   )
 
 ; цикл диалога Доктора с пациентом
@@ -30,12 +30,39 @@
     )
   )
 
-; генерация ответной реплики по user-response -- реплике от пользователя
-(define (reply user-response)
-  (case (random 2) ; с равной вероятностью выбирается один из двух способов построения ответа
-    ((0) (qualifier-answer user-response)) ; 1й способ
-    ((1) (hedge))  ; 2й способ
+; цикл диалога Доктора с пациентом - версия с сохранением вектора всех реплик пользователя
+; параметр name -- имя пациента
+; параметр response-history -- вектор всех предыдущих ответов пользователя
+(define (doctor-driver-loop-v2 name response-history)
+  (newline)
+  (print '**) ; доктор ждёт ввода реплики пациента, приглашением к которому является **
+  (let ((user-response (read)))
+    (cond ((equal? user-response '(goodbye)) ; реплика '(goodbye) служит для выхода из цикла
+           (printf "Goodbye, ~a!\n" name)
+           (print '(see you next week)))
+          (else
+           (print (reply user-response response-history)) ; иначе Доктор генерирует ответ, печатает его
+           (doctor-driver-loop-v2 name (vector-append (vector user-response) response-history)) ; и продолжает цикл
+           )
+          )
     )
+  )
+
+; генерация ответной реплики по user-response -- реплике от пользователя
+; параметр response-history -- вектор всех предыдущих ответов пользователя,
+; нужен для стратегии history-answer
+(define (reply user-response response-history)
+  (if (null? response-history) ; история пуста - пациент ввел первую реплику
+      (case (random 2) ; => применимы только первые две стратегии
+        ((0) (qualifier-answer user-response)) ; 1й способ
+        ((1) (hedge))  ; 2й способ
+        )
+      (case (random 3) ; с равной вероятностью выбирается один из трех способов построения ответа
+        ((0) (qualifier-answer user-response)) ; 1й способ
+        ((1) (hedge))  ; 2й способ
+        ((2) (history-answer response-history)) ; 3-й способ
+        )
+      )
   )
 
 ; 1й способ генерации ответной реплики -- замена лица в реплике пользователя и приписывание к результату нового начала
@@ -150,4 +177,11 @@
                          (please tell me more)
                          (this is very common problem))
                       )
+  )
+
+; 3й способ генерации ответной реплики -- реплика начинается с "earlier you said that"
+; и продолжается одной из предыдущих фраз пациента, в которой произведена замена лица
+(define (history-answer response-history)
+  (append '(earlier you said that)
+        (change-person (pick-random-vector response-history)))
   )
