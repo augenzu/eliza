@@ -31,14 +31,12 @@
   (newline)
   (print '**) ; доктор ждёт ввода реплики пациента, приглашением к которому является **
   (let ((user-response (read)))
-    (cond
-      	    ((equal? user-response '(goodbye)) ; реплика '(goodbye) служит для выхода из цикла
-             (printf "Goodbye, ~a!\n" name)
-             (print '(see you next week)))
-            (else (print (reply user-response)) ; иначе Доктор генерирует ответ, печатает его и продолжает цикл
-                  (doctor-driver-loop name)
-                  )
-            )
+    (if (equal? user-response '(goodbye))
+        (begin (printf "Goodbye, ~a!\n" name) ; реплика '(goodbye) служит для выхода из цикла
+               (print '(see you next week)))
+        (begin (print (reply user-response)) ; иначе Доктор генерирует ответ, печатает его и продолжает цикл
+               (doctor-driver-loop name))
+        )
     )
   )
 
@@ -48,20 +46,16 @@
 (define (visit-doctor-v2 stop-word max-patients-served)
   (let visit-doctor-iter ; функция-итерация (играет роль однопользовательского Доктора)
     ((patients-served 0) (name (ask-patient-name))) ; patients-served - счетчик принятых пациентов, name - имя очередного пациента
-    (cond ((equal? name stop-word) ; если вместо имени пациента введено стоп-слово,
-           (print '(time to go home))) ; Доктор завершает работу
-          (else
-           (printf "Hello, ~a!\n" name) ; Иначе выводит приветствие
-           (print '(what seems to be the trouble?))
-           (doctor-driver-loop-v2 name #()) ; и запускает цикл диалога с пациентом
-           (cond ((= (add1 patients-served) max-patients-served) ; если на данный момент принято максимальное количество пациентов,
-                  (newline)
-                  (print '(time to go home))) ; то Доктор завершает работу
-                 (else
-                  (visit-doctor-iter (add1 patients-served) (ask-patient-name))) ; Иначе переходит к новой итерации, запрашивая имя следующего пациента
-                 )
-           )
-          )
+    (if (equal? name stop-word)  ; если вместо имени пациента введено стоп-слово,
+        (print '(time to go home)) ; Доктор завершает работу
+        (begin (printf "Hello, ~a!\n" name) ; Иначе выводит приветствие
+               (print '(what seems to be the trouble?))
+               (doctor-driver-loop-v2 name #()) ; и запускает цикл диалога с пациентом
+               (if (= (add1 patients-served) max-patients-served) ; если на данный момент принято максимальное количество пациентов,
+                   (print '(time to go home)) ; то Доктор завершает работу
+                   (visit-doctor-iter (add1 patients-served) (ask-patient-name))) ; Иначе переходит к новой итерации, запрашивая имя следующего пациента
+               )
+        )
     )
   )
 
@@ -72,15 +66,13 @@
   (newline)
   (print '**) ; доктор ждёт ввода реплики пациента, приглашением к которому является **
   (let ((user-response (read)))
-    (cond ((equal? user-response '(goodbye)) ; реплика '(goodbye) служит для выхода из цикла
-           (printf "Goodbye, ~a!\n" name)
-           (print '(see you next week))
-           (newline))
-          (else
-           (print (reply user-response response-history)) ; иначе Доктор генерирует ответ, печатает его
-           (doctor-driver-loop-v2 name (vector-append (vector user-response) response-history)) ; и продолжает цикл
-           )
-          )
+    (if (equal? user-response '(goodbye)) ; реплика '(goodbye) служит для выхода из цикла
+        (begin (printf "Goodbye, ~a!\n" name)
+               (print '(see you next week))
+               (newline))
+        (begin (print (reply user-response response-history)) ; иначе Доктор генерирует ответ, печатает его
+               (doctor-driver-loop-v2 name (vector-append (vector user-response) response-history))) ; и продолжает цикл
+        )
     )
   )
 
@@ -152,17 +144,17 @@
 
 ; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs
 (define (many-replace replacement-pairs lst)
-  (cond ((null? lst) lst)
-        (else (let ((pat-rep (assoc (car lst) replacement-pairs))) ; Доктор ищет первый элемент списка в ассоциативном списке замен
-                (cons (if pat-rep
-                          (cadr pat-rep) ; если поиск был удачен, то в начало ответа Доктор пишет замену
-                          (car lst) ; иначе в начале ответа помещается прежнее начало списка без изменений
-                          )
-                      (many-replace replacement-pairs (cdr lst)) ; рекурсивно производятся замены в хвосте списка
-                      )
-                )
+  (if (null? lst)
+      lst
+      (let ((pat-rep (assoc (car lst) replacement-pairs))) ; Доктор ищет первый элемент списка в ассоциативном списке замен
+        (cons (if pat-rep
+                  (cadr pat-rep) ; если поиск был удачен, то в начало ответа Доктор пишет замену
+                  (car lst) ; иначе в начале ответа помещается прежнее начало списка без изменений
+                  )
+              (many-replace replacement-pairs (cdr lst)) ; рекурсивно производятся замены в хвосте списка
               )
         )
+      )
   )
 
 ; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs - итеративная версия
@@ -202,9 +194,9 @@
 
 ; 2й способ генерации ответной реплики -- случайный выбор одной из заготовленных фраз, не связанных с репликой пользователя
 (define (hedge)
-  (pick-random-vector '#((can you elaborate on this?)
-                         (can you think of a specific example?)
-                         (does talking about this bother you?)
+  (pick-random-vector '#((can you elaborate on this)
+                         (can you think of a specific example)
+                         (does talking about this bother you)
                          (i am not sure i understand you fully)
                          (i see)
                          (many people have the same sorts of feelings)
@@ -218,8 +210,8 @@
                          (please go on)
                          (tell me more about that)
                          (this is very common problem)
-                         (what does that suggest to you?)
-                         (what is the connection, do you suppose?))
+                         (what does that suggest to you)
+                         (what is the connection, do you suppose))
                       )
   )
 
