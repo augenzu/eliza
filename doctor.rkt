@@ -1,16 +1,28 @@
 ; "Доктор". Осень 2021
-#lang scheme/base
+
 ; В учебных целях используется базовая версия Scheme
+#lang scheme/base
 
-(require racket/vector)
 ; подключаем функции для работы с векторами
+(require racket/vector)
 
-; основная функция, запускающая "Доктора"
+; функция, запускающая однопользовательского "Доктора"
 ; параметр name -- имя пациента
 (define (visit-doctor name)
   (printf "Hello, ~a!\n" name)
-  (print '(what seems to be the trouble?))
-  (doctor-driver-loop-v2 name #())
+  (print '(what seems to be the trouble?)) ; Доктор выводит приветствие
+  (doctor-driver-loop-v2 name #()) ; и переходит к циклу диалога с пациентом
+  )
+
+; функция для ввода имени пациента
+; (именем пациента считается первый элемент списка, введённого пользователем)
+(define (ask-patient-name)
+  (begin
+    (println '(next!))
+    (println '(who are you?))
+    (print '**)
+    (car (read))
+    )
   )
 
 ; цикл диалога Доктора с пациентом
@@ -30,6 +42,29 @@
     )
   )
 
+; основная функция, запускающая многопользовательского "Доктора"
+; параметр stop-word -- стоп-слово, после использования которого в качестве имени очередного пациента Доктор завершает работу
+; параметр max-patients-served -- максимальное количество пациентов, которое может принять Доктор
+(define (visit-doctor-v2 stop-word max-patients-served)
+  (let visit-doctor-iter ; функция-итерация (играет роль однопользовательского Доктора)
+    ((patients-served 0) (name (ask-patient-name))) ; patients-served - счетчик принятых пациентов, name - имя очередного пациента
+    (cond ((equal? name stop-word) ; если вместо имени пациента введено стоп-слово,
+           (print '(time to go home))) ; Доктор завершает работу
+          (else
+           (printf "Hello, ~a!\n" name) ; Иначе выводит приветствие
+           (print '(what seems to be the trouble?))
+           (doctor-driver-loop-v2 name #()) ; и запускает цикл диалога с пациентом
+           (cond ((= (add1 patients-served) max-patients-served) ; если на данный момент принято максимальное количество пациентов,
+                  (newline)
+                  (print '(time to go home))) ; то Доктор завершает работу
+                 (else
+                  (visit-doctor-iter (add1 patients-served) (ask-patient-name))) ; Иначе переходит к новой итерации, запрашивая имя следующего пациента
+                 )
+           )
+          )
+    )
+  )
+
 ; цикл диалога Доктора с пациентом - версия с сохранением вектора всех реплик пользователя
 ; параметр name -- имя пациента
 ; параметр response-history -- вектор всех предыдущих ответов пользователя
@@ -39,7 +74,8 @@
   (let ((user-response (read)))
     (cond ((equal? user-response '(goodbye)) ; реплика '(goodbye) служит для выхода из цикла
            (printf "Goodbye, ~a!\n" name)
-           (print '(see you next week)))
+           (print '(see you next week))
+           (newline))
           (else
            (print (reply user-response response-history)) ; иначе Доктор генерирует ответ, печатает его
            (doctor-driver-loop-v2 name (vector-append (vector user-response) response-history)) ; и продолжает цикл
@@ -52,7 +88,7 @@
 ; параметр response-history -- вектор всех предыдущих ответов пользователя,
 ; нужен для стратегии history-answer
 (define (reply user-response response-history)
-  (if (null? response-history) ; история пуста - пациент ввел первую реплику
+  (if (vector-empty? response-history) ; история пуста - пациент ввел первую реплику
       (case (random 2) ; => применимы только первые две стратегии
         ((0) (qualifier-answer user-response)) ; 1й способ
         ((1) (hedge))  ; 2й способ
@@ -78,6 +114,7 @@
                                  (why do you say that)
                                  (why do you suppose that)
                                  (why do you think that)
+                                 (you feel that)
                                  (you say that)
                                  (you seem to think that))
                               )
@@ -134,7 +171,7 @@
    (let many-replace-iter ; вспомогательная функция - порождает итеративный процесс за счет хвостовой рекурсии
      ((replaced '()) (unreplaced lst)) ; replaced - начальная часть исходного списка, в которой уже произведены замены
      (if (null? unreplaced)            ; unreplaced - хвост исходного списка, над которым еще не проведены замены
-         replaced ; Если исходный список кончился (хвост пустой), то возвращаем измененную часть.
+         replaced ; Если исходный список кончился (хвост пустой), то возвращаем измененную часть
          (many-replace-iter (let ((pat-rep (assoc (car unreplaced) replacement-pairs)))
                               (cons (if pat-rep  ; Иначе берем первый элемент хвоста исходного списка (unreplaced),
                                         (cadr pat-rep) ; производим над ним замену
@@ -143,7 +180,7 @@
                                     replaced
                                     )
                               )
-                            (cdr unreplaced) ; после этого переходим к новой итерации.
+                            (cdr unreplaced) ; после этого переходим к новой итерации
                             )
          )
      )
@@ -152,11 +189,11 @@
 
 ; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs - версия с map
 (define (many-replace-v3 replacement-pairs lst)
-  (map (lambda (pat) ; Анонимная функция для отображения исходного списка lst в список-результат.
+  (map (lambda (pat) ; Анонимная функция для отображения исходного списка lst в список-результат
          (let ((pat-rep (assoc pat replacement-pairs)))
            (if pat-rep
                (cadr pat-rep) ; Либо находит замену для элемента pat,
-               pat ; либо возвращает элемент неизменным, если такой замены не существует.
+               pat ; либо возвращает элемент неизменным, если такой замены не существует
                )
            )
          )
