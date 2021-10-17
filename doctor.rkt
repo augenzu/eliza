@@ -285,13 +285,8 @@
 
 ; функция-предикат, проверяющая, есть ли в реплике пользователя хотя бы одно ключевое слово
 (define (contains-keyword? user-response)
-  (if (empty? user-response)
-      #f
-      (if (member (car user-response) keywords-set) ; проверяем, является ли первое слово ответа ключевым
-          #t
-          (contains-keyword? (cdr user-response)) ; если нет, рекурсивно проверяем хвост ответа
-          )
-      )
+  (ormap (lambda (word) (member word keywords-set))
+         user-response)
   )
 
 ; 4й способ генерации ответной реплики - по ключевым словам
