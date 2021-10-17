@@ -70,7 +70,7 @@
         (begin (printf "Goodbye, ~a!\n" name)
                (print '(see you next week))
                (newline))
-        (begin (print (reply user-response response-history)) ; иначе Доктор генерирует ответ, печатает его
+        (begin (print (reply-v2 strategies user-response response-history)) ; иначе Доктор генерирует ответ, печатает его
                (doctor-driver-loop-v2 name (vector-append (vector user-response) response-history))) ; и продолжает цикл
         )
     )
@@ -285,9 +285,12 @@
 
 ; функция-предикат, проверяющая, есть ли в реплике пользователя хотя бы одно ключевое слово
 (define (contains-keyword? user-response)
-  (if (member (car user-response) keywords-set) ; проверяем, является ли первое слово ответа ключевым
-      #t
-      (contains-keyword? (cdr user-response)) ; если нет, рекурсивно проверяем хвост ответа
+  (if (empty? user-response)
+      #f
+      (if (member (car user-response) keywords-set) ; проверяем, является ли первое слово ответа ключевым
+          #t
+          (contains-keyword? (cdr user-response)) ; если нет, рекурсивно проверяем хвост ответа
+          )
       )
   )
 
@@ -307,6 +310,64 @@
                                  '()
                                  keywords-structure)) ; список всех шаблонов реплик, которые могут соответствовать выбранному ключевому слову
        (response-pattern (pick-random-list response-patterns))) ; случайным образом выбираем один из шаблонов
-    (many-replace (list (list '* keyword)) response-pattern) ; производим подстановку ключевого слова в шаблон и получаем ответную реплику
+    (many-replace-v3 (list (list '* keyword)) response-pattern) ; производим подстановку ключевого слова в шаблон и получаем ответную реплику
+    )
+  )
+
+; конструктор и селекторы для стратегии
+(define (make-strategy appliable? weight body)
+  (list appliable? weight body)
+  )
+(define (extract-appliable? strategy)
+  (car strategy)
+  )
+(define (extract-weight strategy)
+  (cadr strategy)
+  )
+(define (extract-body strategy)
+  (caddr strategy)
+  )
+
+; выясняет, применяема ли стратегия strategy
+; params - параметры предиката appliable? стратегии
+(define (appliable? strategy . params)
+  (apply (extract-appliable? strategy) params)
+  )
+
+; применяет стратегию strategy к ее параметрам params
+(define (apply-strategy strategy . params)
+  (apply (extract-body strategy) params)
+  )
+
+; список всех используемых стратегий
+; тела стратегий оборачиваются в лямбды с двумя обязательными парметрами user-response и response-history
+; для того, чтобы можно было потом применять apply-strategy в унифицированном виде (см. reply-v2)
+(define strategies
+  (list (make-strategy (lambda params #t)
+                       4
+                       (lambda (user-response response-history . other-params)
+                         (qualifier-answer user-response)))
+        (make-strategy (lambda params #t)
+                       1
+                       (lambda (user-response response-history . other-params)
+                         (hedge)))
+        (make-strategy (lambda (user-response response-history . other-params) (not (vector-empty? response-history)))
+                       2
+                       (lambda (user-response response-history . other-params)
+                         (history-answer response-history)))
+        (make-strategy (lambda (user-response . other-params) (contains-keyword? user-response))
+                       8
+                       (lambda (user-response response-history . other-params)
+                         (keyword-answer user-response)))
+        )
+  )
+
+(define (reply-v2 strategies user-response response-history)
+  (let*
+      ((appliable-strategies (filter (lambda (strategy) (appliable? strategy user-response response-history))
+                                     strategies)) ; список стратегий, применимых в текущей ситуации
+       (weights (map extract-weight appliable-strategies)) ; веса применимых стратегий
+       (chosen-strategy (pick-random-list-with-weight appliable-strategies weights))) ; случайным образом выбираем одну из стратегий
+    (apply-strategy chosen-strategy user-response response-history) ; применяем выбранную стратегию и возвращаем ее результат в качестве ответной реплики
     )
   )
