@@ -4,7 +4,7 @@
 #lang scheme/base
 
 (require racket/vector)
-(require racket/set)
+(require racket/list)
 
 ; функция, запускающая однопользовательского "Доктора"
 ; параметр name -- имя пациента
@@ -46,7 +46,7 @@
 (define (visit-doctor-v2 stop-word max-patients-served)
   (let visit-doctor-iter ; функция-итерация (играет роль однопользовательского Доктора)
     ((patients-served 0) (name (ask-patient-name))) ; patients-served - счетчик принятых пациентов, name - имя очередного пациента
-    (if (equal? name stop-word)  ; если вместо имени пациента введено стоп-слово,
+    (if (equal? name stop-word) ; если вместо имени пациента введено стоп-слово,
         (print '(time to go home)) ; Доктор завершает работу
         (begin (printf "Hello, ~a!\n" name) ; Иначе выводит приветствие
                (print '(what seems to be the trouble?))
@@ -81,15 +81,30 @@
 ; нужен для стратегии history-answer
 (define (reply user-response response-history)
   (if (vector-empty? response-history) ; история пуста - пациент ввел первую реплику
-      (case (random 2) ; => применимы только первые две стратегии
-        ((0) (qualifier-answer user-response)) ; 1й способ
-        ((1) (hedge))  ; 2й способ
-        )
-      (case (random 3) ; с равной вероятностью выбирается один из трех способов построения ответа
-        ((0) (qualifier-answer user-response)) ; 1й способ
-        ((1) (hedge))  ; 2й способ
-        ((2) (history-answer response-history)) ; 3-й способ
-        )
+      (if (contains-keyword? user-response)
+          (case (random 3)
+            ((0) (qualifier-answer user-response)) ; 1й способ
+            ((1) (hedge)) ; 2й способ
+            ((2) (keyword-answer user-response)) ; 4й способ
+            )
+          (case (random 2)
+            ((0) (qualifier-answer user-response)) ; 1й способ
+            ((1) (hedge)) ; 2й способ
+            )
+          )
+      (if (contains-keyword? user-response)
+          (case (random 4)
+            ((0) (qualifier-answer user-response)) ; 1й способ
+            ((1) (hedge)) ; 2й способ
+            ((2) (history-answer response-history)) ; 3-й способ
+            ((3) (keyword-answer user-response)) ; 4й способ
+            )
+          (case (random 3)
+            ((0) (qualifier-answer user-response)) ; 1й способ
+            ((1) (hedge)) ; 2й способ
+            ((2) (history-answer response-history)) ; 3-й способ
+            )
+          )
       )
   )
 
@@ -119,15 +134,20 @@
   (vector-ref vctr (random (vector-length vctr)))
   )
 
+; случайный выбор одного из элементов списка lst
+(define (pick-random-list lst)
+  (list-ref lst (random (length lst)))
+  )
+
 ; случайный выбор одного из элементов списка lst с учетом весов weights
 ; weights - список натуральных чисел (включая 0)
 (define (pick-random-list-with-weight lst weights)
-  (let select-item-by-weighted-index  ; выбираем элемент со случайным индексом idx из списка, в котором по порядку идут
-    ((idx (random (foldl + 0 weights))) (lst lst) (weights weights))  ; w_i элементов e_i для всех i от 0 до len(lst) - 1; e_i - элементы lst
-    (if (< idx (car weights))  ; если idx < w_0 + .. + w_i (все элементы, равные e_i, имеют индексы из [w_0 + .. + w_i-1, w_0 + .. + w_i)),
-        (car lst)  ; то результатом является элемент e_i
-        (select-item-by-weighted-index idx  ; иначе запускаем аналогичкую проверку для следующего элемента e_i+1
-                                       (cdr lst)  ; и индексов [w_0 + .. + w_i, w_0 + .. + w_i+1) соответственно
+  (let select-item-by-weighted-index ; выбираем элемент со случайным индексом idx из списка, в котором по порядку идут
+    ((idx (random (foldl + 0 weights))) (lst lst) (weights weights)) ; w_i элементов e_i для всех i от 0 до len(lst) - 1; e_i - элементы lst
+    (if (< idx (car weights)) ; если idx < w_0 + .. + w_i (все элементы, равные e_i, имеют индексы из [w_0 + .. + w_i-1, w_0 + .. + w_i)),
+        (car lst) ; то результатом является элемент e_i
+        (select-item-by-weighted-index idx ; иначе запускаем аналогичкую проверку для следующего элемента e_i+1
+                                       (cdr lst) ; и индексов [w_0 + .. + w_i, w_0 + .. + w_i+1) соответственно
                                        (cons (+ (car weights) (cadr weights)) (cddr weights))
                                        )
         )
@@ -180,7 +200,7 @@
      (if (null? unreplaced)            ; unreplaced - хвост исходного списка, над которым еще не проведены замены
          replaced ; Если исходный список кончился (хвост пустой), то возвращаем измененную часть
          (many-replace-iter (let ((pat-rep (assoc (car unreplaced) replacement-pairs)))
-                              (cons (if pat-rep  ; Иначе берем первый элемент хвоста исходного списка (unreplaced),
+                              (cons (if pat-rep ; Иначе берем первый элемент хвоста исходного списка (unreplaced),
                                         (cadr pat-rep) ; производим над ним замену
                                         (car unreplaced) ; и присоединяем результат к replaced;
                                         )
@@ -237,27 +257,56 @@
           (change-person (pick-random-vector response-history)))
   )
 
-; вектор пар "список ключевых слов - список шаблонов ответа";
+; список пар "список ключевых слов - список шаблонов ответа";
 ; структура данных для 4го способа генерации ответной реплики - keyword-answer
 (define keywords-structure
-  '#(
-     ((depressed suicide exams university)
-      ((when you feel depressed, go out for ice cream)
-       (depression is a disease that can be treated)))
-     ((mother father parents brother sister uncle aunt grandma grandpa)
-      ((tell me more about your * , i want to know all about your *)
-       (why do you feel that way about your *)))
-     ((university scheme aunt lections)
-      ((your education is important)
-       (how much time do you spend to learning)))
-     )
+  '(
+    ((depressed suicide exams university)
+     ((when you feel depressed, go out for ice cream)
+      (depression is a disease that can be treated)))
+    ((mother father parents brother sister uncle aunt grandma grandpa)
+     ((tell me more about your * i want to know all about your *)
+      (why do you feel that way about your *)))
+    ((university scheme lections)
+     ((your education is important)
+      (how much time do you spend to learning)))
+    )
   )
 
 ; множество всех ключевых слов для 4го способа генерации ответной реплики - keyword-answer
-(define keywords-set  ; собираем все уникальные ключевые слова из keywords-structure
-  (list->set (foldl (lambda (pair kws-set) (append kws-set (car pair)))  ; pair - элемент keywords-structure, пара из списка ключевых слов и списка шаблонов
-                    '()
-                    (vector->list keywords-structure)  ; превращаем keywords-structure в список, чтобы можно было использовать foldl
-                    )
-             )
+(define keywords-set
+  (remove-duplicates ; собираем все уникальные ключевые слова из keywords-structure
+   (foldl (lambda (kws-patterns-pair kws-set) (append kws-set (car kws-patterns-pair))) ; kws-patterns-pair - элемент keywords-structure,
+          '()                                                                           ; пара из списка ключевых слов и списка шаблонов
+          keywords-structure
+          )
+   )
+  )
+
+; функция-предикат, проверяющая, есть ли в реплике пользователя хотя бы одно ключевое слово
+(define (contains-keyword? user-response)
+  (if (member (car user-response) keywords-set) ; проверяем, является ли первое слово ответа ключевым
+      #t
+      (contains-keyword? (cdr user-response)) ; если нет, рекурсивно проверяем хвост ответа
+      )
+  )
+
+; 4й способ генерации ответной реплики - по ключевым словам
+(define (keyword-answer user-response)
+  (let*
+      ((response-keywords (remove-duplicates (filter (lambda (word) (member word keywords-set))
+                                                     user-response))) ; список всех уникальных ключевых слов, содержащихся в ответе пользователя
+       (weights (foldr (lambda (keyword weights) (cons (length (indexes-of user-response keyword)) weights))
+                       '()
+                       response-keywords)) ; веса, с которыми эти ключевые слова встречаются в ответе пользователя
+       (keyword (pick-random-list-with-weight response-keywords weights)) ; выбираем случайное ключевое слово для построения реплики
+       (response-patterns (foldl (lambda (kws-patterns-pair response-patterns) ; kws-patterns-pair - элемент keywords-structure, пара из списка ключевых слов и списка шаблонов
+                                   (if (member keyword (car kws-patterns-pair))
+                                       (append response-patterns (cadr kws-patterns-pair))
+                                       response-patterns))
+                                 '()
+                                 keywords-structure)) ; список всех шаблонов реплик, которые могут соответствовать выбранному ключевому слову
+       (response-pattern (pick-random-list response-patterns))) ; случайным образом выбираем один из шаблонов
+    (many-replace (list (list '* keyword)) response-pattern) ; производим подстановку ключевого слова в шаблон и получаем ответную реплику
+    )
   )
