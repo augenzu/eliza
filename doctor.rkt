@@ -3,8 +3,8 @@
 ; В учебных целях используется базовая версия Scheme
 #lang scheme/base
 
-; подключаем функции для работы с векторами
 (require racket/vector)
+(require racket/set)
 
 ; функция, запускающая однопользовательского "Доктора"
 ; параметр name -- имя пациента
@@ -235,4 +235,29 @@
 (define (history-answer response-history)
   (append '(earlier you said that)
           (change-person (pick-random-vector response-history)))
+  )
+
+; вектор пар "список ключевых слов - список шаблонов ответа";
+; структура данных для 4го способа генерации ответной реплики - keyword-answer
+(define keywords-structure
+  '#(
+     ((depressed suicide exams university)
+      ((when you feel depressed, go out for ice cream)
+       (depression is a disease that can be treated)))
+     ((mother father parents brother sister uncle aunt grandma grandpa)
+      ((tell me more about your * , i want to know all about your *)
+       (why do you feel that way about your *)))
+     ((university scheme aunt lections)
+      ((your education is important)
+       (how much time do you spend to learning)))
+     )
+  )
+
+; множество всех ключевых слов для 4го способа генерации ответной реплики - keyword-answer
+(define keywords-set  ; собираем все уникальные ключевые слова из keywords-structure
+  (list->set (foldl (lambda (pair kws-set) (append kws-set (car pair)))  ; pair - элемент keywords-structure, пара из списка ключевых слов и списка шаблонов
+                    '()
+                    (vector->list keywords-structure)  ; превращаем keywords-structure в список, чтобы можно было использовать foldl
+                    )
+             )
   )
