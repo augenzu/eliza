@@ -119,6 +119,21 @@
   (vector-ref vctr (random (vector-length vctr)))
   )
 
+; случайный выбор одного из элементов списка lst с учетом весов weights
+; weights - список натуральных чисел (включая 0)
+(define (pick-random-list-with-weight lst weights)
+  (let select-item-by-weighted-index  ; выбираем элемент со случайным индексом idx из списка, в котором по порядку идут
+    ((idx (random (foldl + 0 weights))) (lst lst) (weights weights))  ; w_i элементов e_i для всех i от 0 до len(lst) - 1; e_i - элементы lst
+    (if (< idx (car weights))  ; если idx < w_0 + .. + w_i (все элементы, равные e_i, имеют индексы из [w_0 + .. + w_i-1, w_0 + .. + w_i)),
+        (car lst)  ; то результатом является элемент e_i
+        (select-item-by-weighted-index idx  ; иначе запускаем аналогичкую проверку для следующего элемента e_i+1
+                                       (cdr lst)  ; и индексов [w_0 + .. + w_i, w_0 + .. + w_i+1) соответственно
+                                       (cons (+ (car weights) (cadr weights)) (cddr weights))
+                                       )
+        )
+    )
+  )
+
 ; замена лица во фразе
 (define (change-person phrase)
   (many-replace-v3 '((am are)
