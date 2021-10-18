@@ -139,21 +139,6 @@
   (list-ref lst (random (length lst)))
   )
 
-; случайный выбор одного из элементов списка lst с учетом весов weights
-; weights - список натуральных чисел (включая 0)
-(define (pick-random-list-with-weight lst weights)
-  (let select-item-by-weighted-index ; выбираем элемент со случайным индексом idx из списка, в котором по порядку идут
-    ((idx (random (foldl + 0 weights))) (lst lst) (weights weights)) ; w_i элементов e_i для всех i от 0 до len(lst) - 1; e_i - элементы lst
-    (if (< idx (car weights)) ; если idx < w_0 + .. + w_i (все элементы, равные e_i, имеют индексы из [w_0 + .. + w_i-1, w_0 + .. + w_i)),
-        (car lst) ; то результатом является элемент e_i
-        (select-item-by-weighted-index idx ; иначе запускаем аналогичкую проверку для следующего элемента e_i+1
-                                       (cdr lst) ; и индексов [w_0 + .. + w_i, w_0 + .. + w_i+1) соответственно
-                                       (cons (+ (car weights) (cadr weights)) (cddr weights))
-                                       )
-        )
-    )
-  )
-
 ; замена лица во фразе
 (define (change-person phrase)
   (many-replace-v3 '((am are)
@@ -310,12 +295,12 @@
 ; 4й способ генерации ответной реплики - по ключевым словам
 (define (keyword-answer user-response)
   (let*
-      ((response-keywords (remove-duplicates (filter (lambda (word) (member word keywords-set))
-                                                     user-response))) ; список всех уникальных ключевых слов, содержащихся в ответе пользователя
+      ((response-keywords (filter (lambda (word) (member word keywords-set))
+                                  user-response)) ; список всех уникальных ключевых слов, содержащихся в ответе пользователя
        (weights (foldr (lambda (keyword weights) (cons (length (indexes-of user-response keyword)) weights))
                        '()
                        response-keywords)) ; веса, с которыми эти ключевые слова встречаются в ответе пользователя
-       (keyword (pick-random-list-with-weight response-keywords weights)) ; выбираем случайное ключевое слово для построения реплики
+       (keyword (pick-random-list response-keywords)) ; выбираем случайное ключевое слово для построения реплики
        (response-patterns (foldl (lambda (kws-patterns-pair response-patterns) ; kws-patterns-pair - элемент keywords-structure, пара из списка ключевых слов и списка шаблонов
                                    (if (member keyword (car kws-patterns-pair))
                                        (append response-patterns (cadr kws-patterns-pair))
@@ -331,7 +316,7 @@
 (define (make-strategy appliable? weight body)
   (list appliable? weight body)
   )
-(define (extract-appliable? strategy)
+(define (extract-appliable strategy)
   (car strategy)
   )
 (define (extract-weight strategy)
@@ -344,7 +329,7 @@
 ; выясняет, применяема ли стратегия strategy
 ; params - параметры предиката appliable? стратегии
 (define (appliable? strategy . params)
-  (apply (extract-appliable? strategy) params)
+  (apply (extract-appliable strategy) params)
   )
 
 ; применяет стратегию strategy к ее параметрам params
@@ -353,16 +338,17 @@
   )
 
 ; список всех используемых стратегий
-; тела стратегий оборачиваются в лямбды с двумя обязательными парметрами user-response и response-history
+; тела стратегий оборачиваются в лямбды, в которых праметры если появляются,
+; то обязательно в таком порядке: user-response, response-history, other-params
 ; для того, чтобы можно было потом применять apply-strategy в унифицированном виде (см. reply-v2)
 (define strategies
   (list (make-strategy (lambda params #t)
                        4
-                       (lambda (user-response response-history . other-params)
+                       (lambda (user-response . other-params)
                          (qualifier-answer user-response)))
         (make-strategy (lambda params #t)
                        1
-                       (lambda (user-response response-history . other-params)
+                       (lambda other-params
                          (hedge)))
         (make-strategy (lambda (user-response response-history . other-params) (not (vector-empty? response-history)))
                        2
@@ -370,17 +356,35 @@
                          (history-answer response-history)))
         (make-strategy (lambda (user-response . other-params) (contains-keyword? user-response))
                        8
-                       (lambda (user-response response-history . other-params)
+                       (lambda (user-response . other-params)
                          (keyword-answer user-response)))
         )
+  )
+
+; случайный выбор одного из элементов списка стратегий strategies с учетом весов
+; для каждой стратегии ее вес находится во 2м по счету поле структуры, а тело - в 3м
+; (см. конструктор и селекторы структуры strategy)
+(define (pick-random-strategy-with-weight strategies)
+  (let select-strategy-by-weighted-index ; выбираем стратегию со случайным индексом idx из списка, в котором по порядку идут
+    ((idx (random (foldl (lambda (strategy weights-sum) ; w_i стратегий s_i для всех i от 0 до len(strategies) - 1; s_i - стратегии (элементы strategies)
+                           (+ weights-sum (extract-weight strategy)))
+                         0
+                         strategies)))
+     (strategies strategies))
+    (if (< idx (extract-weight (car strategies))) ; если idx < w_0 + .. + w_i (все стратегии, равные s_i, имеют индексы из [w_0 + .. + w_i-1, w_0 + .. + w_i)),
+        (car strategies) ; то результатом является стратегия s_i; (idx < w_0 + .. + w_i <=> idx - (w_0 + .. + w_i-1) < w_i - поэтому на каждой новой итерации мы уменьшаем idx на текущий вес)
+        (select-strategy-by-weighted-index (- idx (extract-weight (car strategies))) ; иначе запускаем аналогичкую проверку для следующей стратегии s_i+1
+                                           (cdr strategies) ; и индексов [w_0 + .. + w_i, w_0 + .. + w_i+1) соответственно
+                                           )
+        )
+    )
   )
 
 (define (reply-v2 strategies user-response response-history)
   (let*
       ((appliable-strategies (filter (lambda (strategy) (appliable? strategy user-response response-history))
                                      strategies)) ; список стратегий, применимых в текущей ситуации
-       (weights (map extract-weight appliable-strategies)) ; веса применимых стратегий
-       (chosen-strategy (pick-random-list-with-weight appliable-strategies weights))) ; случайным образом выбираем одну из стратегий
+       (chosen-strategy (pick-random-strategy-with-weight appliable-strategies))) ; случайным образом выбираем одну из стратегий
     (apply-strategy chosen-strategy user-response response-history) ; применяем выбранную стратегию и возвращаем ее результат в качестве ответной реплики
     )
   )
