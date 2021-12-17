@@ -1,10 +1,25 @@
 ; "Доктор". Осень 2021
 
 ; В учебных целях используется базовая версия Scheme
-#lang scheme/base
+#lang scheme
 
-(require racket/vector)
-(require racket/list)
+; класс для внутреннего представления фраз Доктора и пациента
+; sentences - список предложений (класс sentence%)
+(define text%
+  (class object%
+    (super-new)
+    (init-field sentences)
+    )
+  )
+
+; класс для внутреннего представления предложений, составляющих фразы
+; words - список строк
+(define sentence%
+  (class object%
+    (super-new)
+    (init-field words)
+    )
+  )
 
 ; функция для ввода имени пациента
 ; (именем пациента считается первый элемент списка, введённого пользователем)
