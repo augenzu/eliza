@@ -6,14 +6,6 @@
 (require racket/vector)
 (require racket/list)
 
-; функция, запускающая однопользовательского "Доктора"
-; параметр name -- имя пациента
-(define (visit-doctor name)
-  (printf "Hello, ~a!\n" name)
-  (print '(what seems to be the trouble?)) ; Доктор выводит приветствие
-  (doctor-driver-loop-v2 name #()) ; и переходит к циклу диалога с пациентом
-  )
-
 ; функция для ввода имени пациента
 ; (именем пациента считается первый элемент списка, введённого пользователем)
 (define (ask-patient-name)
@@ -25,32 +17,17 @@
     )
   )
 
-; цикл диалога Доктора с пациентом
-; параметр name -- имя пациента
-(define (doctor-driver-loop name)
-  (newline)
-  (print '**) ; доктор ждёт ввода реплики пациента, приглашением к которому является **
-  (let ((user-response (read)))
-    (if (equal? user-response '(goodbye))
-        (begin (printf "Goodbye, ~a!\n" name) ; реплика '(goodbye) служит для выхода из цикла
-               (print '(see you next week)))
-        (begin (print (reply user-response)) ; иначе Доктор генерирует ответ, печатает его и продолжает цикл
-               (doctor-driver-loop name))
-        )
-    )
-  )
-
 ; основная функция, запускающая многопользовательского "Доктора"
 ; параметр stop-word -- стоп-слово, после использования которого в качестве имени очередного пациента Доктор завершает работу
 ; параметр max-patients-served -- максимальное количество пациентов, которое может принять Доктор
-(define (visit-doctor-v2 stop-word max-patients-served)
+(define (visit-doctor stop-word max-patients-served)
   (let visit-doctor-iter ; функция-итерация (играет роль однопользовательского Доктора)
     ((patients-served 0) (name (ask-patient-name))) ; patients-served - счетчик принятых пациентов, name - имя очередного пациента
     (if (equal? name stop-word) ; если вместо имени пациента введено стоп-слово,
         (print '(time to go home)) ; Доктор завершает работу
         (begin (printf "Hello, ~a!\n" name) ; Иначе выводит приветствие
                (print '(what seems to be the trouble?))
-               (doctor-driver-loop-v2 name #()) ; и запускает цикл диалога с пациентом
+               (doctor-driver-loop name #()) ; и запускает цикл диалога с пациентом
                (if (= (add1 patients-served) max-patients-served) ; если на данный момент принято максимальное количество пациентов,
                    (print '(time to go home)) ; то Доктор завершает работу
                    (visit-doctor-iter (add1 patients-served) (ask-patient-name))) ; Иначе переходит к новой итерации, запрашивая имя следующего пациента
@@ -62,7 +39,7 @@
 ; цикл диалога Доктора с пациентом - версия с сохранением вектора всех реплик пользователя
 ; параметр name -- имя пациента
 ; параметр response-history -- вектор всех предыдущих ответов пользователя
-(define (doctor-driver-loop-v2 name response-history)
+(define (doctor-driver-loop name response-history)
   (newline)
   (print '**) ; доктор ждёт ввода реплики пациента, приглашением к которому является **
   (let ((user-response (read)))
@@ -70,42 +47,10 @@
         (begin (printf "Goodbye, ~a!\n" name)
                (print '(see you next week))
                (newline))
-        (begin (print (reply-v2 strategies user-response response-history)) ; иначе Доктор генерирует ответ, печатает его
-               (doctor-driver-loop-v2 name (vector-append (vector user-response) response-history))) ; и продолжает цикл
+        (begin (print (reply strategies user-response response-history)) ; иначе Доктор генерирует ответ, печатает его
+               (doctor-driver-loop name (vector-append (vector user-response) response-history))) ; и продолжает цикл
         )
     )
-  )
-
-; генерация ответной реплики по user-response -- реплике от пользователя
-; параметр response-history -- вектор всех предыдущих ответов пользователя,
-; нужен для стратегии history-answer
-(define (reply user-response response-history)
-  (if (vector-empty? response-history) ; история пуста - пациент ввел первую реплику
-      (if (contains-keyword? user-response)
-          (case (random 3)
-            ((0) (qualifier-answer user-response)) ; 1й способ
-            ((1) (hedge)) ; 2й способ
-            ((2) (keyword-answer user-response)) ; 4й способ
-            )
-          (case (random 2)
-            ((0) (qualifier-answer user-response)) ; 1й способ
-            ((1) (hedge)) ; 2й способ
-            )
-          )
-      (if (contains-keyword? user-response)
-          (case (random 4)
-            ((0) (qualifier-answer user-response)) ; 1й способ
-            ((1) (hedge)) ; 2й способ
-            ((2) (history-answer response-history)) ; 3-й способ
-            ((3) (keyword-answer user-response)) ; 4й способ
-            )
-          (case (random 3)
-            ((0) (qualifier-answer user-response)) ; 1й способ
-            ((1) (hedge)) ; 2й способ
-            ((2) (history-answer response-history)) ; 3-й способ
-            )
-          )
-      )
   )
 
 ; 1й способ генерации ответной реплики -- замена лица в реплике пользователя и приписывание к результату нового начала
@@ -141,7 +86,7 @@
 
 ; замена лица во фразе
 (define (change-person phrase)
-  (many-replace-v3 '((am are)
+  (many-replace '((am are)
                      (are am)
                      (i you)
                      (me you)
@@ -162,45 +107,8 @@
                    phrase)
   )
 
-; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs
-(define (many-replace replacement-pairs lst)
-  (if (null? lst)
-      lst
-      (let ((pat-rep (assoc (car lst) replacement-pairs))) ; Доктор ищет первый элемент списка в ассоциативном списке замен
-        (cons (if pat-rep
-                  (cadr pat-rep) ; если поиск был удачен, то в начало ответа Доктор пишет замену
-                  (car lst) ; иначе в начале ответа помещается прежнее начало списка без изменений
-                  )
-              (many-replace replacement-pairs (cdr lst)) ; рекурсивно производятся замены в хвосте списка
-              )
-        )
-      )
-  )
-
-; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs - итеративная версия
-(define (many-replace-v2 replacement-pairs lst)
-  (reverse ; получаем список с заменами в перевернутом виде (чтобы не использовать append), затем разворачиваем
-   (let many-replace-iter ; вспомогательная функция - порождает итеративный процесс за счет хвостовой рекурсии
-     ((replaced '()) (unreplaced lst)) ; replaced - начальная часть исходного списка, в которой уже произведены замены
-     (if (null? unreplaced)            ; unreplaced - хвост исходного списка, над которым еще не проведены замены
-         replaced ; Если исходный список кончился (хвост пустой), то возвращаем измененную часть
-         (many-replace-iter (let ((pat-rep (assoc (car unreplaced) replacement-pairs)))
-                              (cons (if pat-rep ; Иначе берем первый элемент хвоста исходного списка (unreplaced),
-                                        (cadr pat-rep) ; производим над ним замену
-                                        (car unreplaced) ; и присоединяем результат к replaced;
-                                        )
-                                    replaced
-                                    )
-                              )
-                            (cdr unreplaced) ; после этого переходим к новой итерации
-                            )
-         )
-     )
-   )
-  )
-
 ; осуществление всех замен в списке lst по ассоциативному списку replacement-pairs - версия с map
-(define (many-replace-v3 replacement-pairs lst)
+(define (many-replace replacement-pairs lst)
   (map (lambda (pat) ; Анонимная функция для отображения исходного списка lst в список-результат
          (let ((pat-rep (assoc pat replacement-pairs)))
            (if pat-rep
@@ -308,7 +216,7 @@
                                  '()
                                  keywords-structure)) ; список всех шаблонов реплик, которые могут соответствовать выбранному ключевому слову
        (response-pattern (pick-random-list response-patterns))) ; случайным образом выбираем один из шаблонов
-    (many-replace-v3 (list (list '* keyword)) response-pattern) ; производим подстановку ключевого слова в шаблон и получаем ответную реплику
+    (many-replace (list (list '* keyword)) response-pattern) ; производим подстановку ключевого слова в шаблон и получаем ответную реплику
     )
   )
 
@@ -340,7 +248,7 @@
 ; список всех используемых стратегий
 ; тела стратегий оборачиваются в лямбды, в которых праметры если появляются,
 ; то обязательно в таком порядке: user-response, response-history, other-params
-; для того, чтобы можно было потом применять apply-strategy в унифицированном виде (см. reply-v2)
+; для того, чтобы можно было потом применять apply-strategy в унифицированном виде (см. reply)
 (define strategies
   (list (make-strategy (lambda params #t)
                        4
@@ -380,7 +288,7 @@
     )
   )
 
-(define (reply-v2 strategies user-response response-history)
+(define (reply strategies user-response response-history)
   (let*
       ((appliable-strategies (filter (lambda (strategy) (appliable? strategy user-response response-history))
                                      strategies)) ; список стратегий, применимых в текущей ситуации
